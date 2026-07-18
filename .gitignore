@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.log
+dist/
+vigie-backend/vigie.db
+vigie-backend/vigie.db-*
