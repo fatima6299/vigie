@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vigie — Tableau de bord</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#101C2C; --ink-2:#16283D; --ink-3:#1D3350;
+  --text-primary:#EDEAE1; --text-secondary:#93A1B0; --text-muted:#5E7085;
+  --amber:#E2933A; --amber-dim:#3A2C18;
+  --teal:#2FA98C; --teal-dim:#12332B;
+  --red:#D3564F; --red-dim:#3A1E1C;
+  --line:rgba(237,234,225,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--ink);color:var(--text-primary);font-family:'IBM Plex Sans',sans-serif;padding:32px 24px 64px;}
+.wrap{max-width:960px;margin:0 auto;}
+h1,h2{font-family:'Space Grotesk',sans-serif;font-weight:600;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;}
+.logo{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 4px var(--teal-dim);}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--ink-2);border-radius:8px;padding:16px;}
+.stat-card .label{font-size:12px;color:var(--text-secondary);margin-bottom:6px;}
+.stat-card .value{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
+
+.panel{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+.panel-head{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.panel-head h2{font-size:15px;}
+
+.add-form{display:flex;gap:8px;padding:16px 20px;border-bottom:1px solid var(--line);}
+.add-form input{
+  flex:1;background:var(--ink-3);border:1px solid var(--line);color:var(--text-primary);
+  padding:9px 12px;border-radius:6px;font-size:13px;
+}
+.add-form button{
+  background:var(--teal);color:#08211B;border:none;padding:9px 16px;border-radius:6px;
+  font-size:13px;font-weight:500;cursor:pointer;
+}
+.add-form button:hover{background:#3ABE9E;}
+#form-error{color:var(--red);font-size:12px;padding:0 20px;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--text-muted);font-weight:400;font-size:12px;padding:10px 20px;}
+td{padding:12px 20px;border-top:1px solid var(--line);vertical-align:middle;}
+.site-name{font-weight:500;}
+.site-url{color:var(--text-muted);font-size:12px;}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;}
+.status-dot{width:7px;height:7px;border-radius:50%;}
+.status-up .status-dot{background:var(--teal);}
+.status-lent .status-dot{background:var(--amber);}
+.status-down .status-dot{background:var(--red);}
+.status-en_attente .status-dot{background:var(--text-muted);}
+.status-up{color:var(--teal);}
+.status-lent{color:var(--amber);}
+.status-down{color:var(--red);}
+.status-en_attente{color:var(--text-muted);}
+.del-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;}
+.del-btn:hover{color:var(--red);}
+.empty{padding:32px 20px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+.alert-row{display:flex;gap:12px;padding:12px 20px;border-top:1px solid var(--line);font-size:13px;}
+.alert-row:first-child{border-top:none;}
+.alert-row.panne{background:var(--red-dim);}
+.alert-row.retour{background:var(--teal-dim);}
+.alert-time{color:var(--text-muted);white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="dot"></span>Vigie</div>
+    <span class="mono" style="font-size:12px;color:var(--text-secondary);">vérification toutes les 15s</span>
+  </header>
+
+  <div class="stats">
+    <div class="stat-card"><div class="label">Sites surveillés</div><div class="value" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="label">En ligne</div><div class="value" id="stat-up">—</div></div>
+    <div class="stat-card"><div class="label">En panne</div><div class="value" id="stat-down">—</div></div>
+    <div class="stat-card"><div class="label">Alertes envoyées</div><div class="value" id="stat-alerts">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Sites surveillés</h2></div>
+    <form class="add-form" id="add-form">
+      <input type="text" id="input-name" placeholder="Nom (ex : Boutique en ligne)" required />
+      <input type="url" id="input-url" placeholder="https://exemple.sn" required />
+      <button type="submit">Ajouter ↗</button>
+    </form>
+    <p id="form-error"></p>
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Statut</th><th>Temps de réponse</th><th>Disponibilité</th><th></th></tr>
+      </thead>
+      <tbody id="sites-body"></tbody>
+    </table>
+    <div class="empty" id="empty-state" style="display:none;">Aucun site surveillé pour l'instant. Ajoutez-en un ci-dessus.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Alertes récentes</h2></div>
+    <div id="alerts-list"></div>
+    <div class="empty" id="alerts-empty" style="display:none;">Aucune alerte pour l'instant — tout va bien.</div>
+  </div>
+</div>
+
+<script>
+const STATUS_LABELS = { up: 'En ligne', lent: 'Lent', down: 'En panne', en_attente: 'En attente' };
+
+async function fetchSites() {
+  const res = await fetch('/api/sites');
+  return res.json();
+}
+async function fetchAlerts() {
+  const res = await fetch('/api/alerts');
+  return res.json();
+}
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `il y a ${diff}s`;
+  if (diff < 3600) return `il y a ${Math.round(diff/60)} min`;
+  return `il y a ${Math.round(diff/3600)} h`;
+}
+
+function render(sites, alerts) {
+  document.getElementById('stat-total').textContent = sites.length;
+  document.getElementById('stat-up').textContent = sites.filter(s => s.status === 'up' || s.status === 'lent').length;
+  document.getElementById('stat-down').textContent = sites.filter(s => s.status === 'down').length;
+  document.getElementById('stat-alerts').textContent = alerts.length;
+
+  const body = document.getElementById('sites-body');
+  document.getElementById('empty-state').style.display = sites.length ? 'none' : 'block';
+  body.innerHTML = sites.map(s => `
+    <tr>
+      <td>
+        <div class="site-name">${escapeHtml(s.name)}</div>
+        <div class="site-url">${escapeHtml(s.url)}</div>
+      </td>
+      <td>
+        <span class="status-pill status-${s.status}">
+          <span class="status-dot"></span>${STATUS_LABELS[s.status] || s.status}
+        </span>
+      </td>
+      <td>${s.responseTimeMs != null ? s.responseTimeMs + ' ms' : '—'}<br>
+          <span style="color:var(--text-muted); font-size:11px;">${timeAgo(s.lastCheckAt)}</span></td>
+      <td>${s.uptimePercent != null ? s.uptimePercent + '%' : '—'}</td>
+      <td><button class="del-btn" onclick="deleteSite('${s.id}')" title="Supprimer">✕</button></td>
+    </tr>
+  `).join('');
+
+  const alertsList = document.getElementById('alerts-list');
+  document.getElementById('alerts-empty').style.display = alerts.length ? 'none' : 'block';
+  alertsList.innerHTML = alerts.slice(0, 10).map(a => `
+    <div class="alert-row ${a.type}">
+      <span class="alert-time mono">${timeAgo(a.at)}</span>
+      <span>${escapeHtml(a.message)}</span>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function deleteSite(id) {
+  await fetch('/api/sites/' + id, { method: 'DELETE' });
+  refresh();
+}
+
+async function refresh() {
+  const [sites, alerts] = await Promise.all([fetchSites(), fetchAlerts()]);
+  render(sites, alerts);
+}
+
+document.getElementById('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('input-name').value.trim();
+  const url = document.getElementById('input-url').value.trim();
+  const errorEl = document.getElementById('form-error');
+  errorEl.textContent = '';
+
+  const res = await fetch('/api/sites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, url })
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    errorEl.textContent = data.error || 'Une erreur est survenue.';
+    return;
+  }
+  document.getElementById('input-name').value = '';
+  document.getElementById('input-url').value = '';
+  refresh();
+});
+
+refresh();
+setInterval(refresh, 5000); // rafraîchit le dashboard toutes les 5s
+</script>
+</body>
+</html>
