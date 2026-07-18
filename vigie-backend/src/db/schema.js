@@ -39,7 +39,7 @@ export const sites = pgTable('sites', {
 // --- CHECKS (historique détaillé de chaque vérification) ---
 export const checks = pgTable('checks', {
   id: text('id').primaryKey(),
-  siteId: text('site_id').notNull().references(() => sites.id),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   status: text('status').notNull(),
   responseTimeMs: integer('response_time_ms'),
   detail: text('detail'),
@@ -50,7 +50,7 @@ export const checks = pgTable('checks', {
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
-  siteId: text('site_id').notNull().references(() => sites.id),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   siteName: text('site_name').notNull(),
   type: text('type').notNull(),      // panne | retour
   message: text('message').notNull(),
@@ -61,7 +61,7 @@ export const alerts = pgTable('alerts', {
 // --- PAGE_VIEWS (visites collectées par le script de tracking embarqué) ---
 export const pageViews = pgTable('page_views', {
   id: text('id').primaryKey(),
-  siteId: text('site_id').notNull().references(() => sites.id),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   visitorId: text('visitor_id').notNull(), // identifiant anonyme stocké côté navigateur (localStorage)
   path: text('path').notNull(),
   referrer: text('referrer'),
@@ -72,7 +72,7 @@ export const pageViews = pgTable('page_views', {
 // --- CLIENT_ERRORS (erreurs JavaScript rencontrées par les visiteurs) ---
 export const clientErrors = pgTable('client_errors', {
   id: text('id').primaryKey(),
-  siteId: text('site_id').notNull().references(() => sites.id),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   visitorId: text('visitor_id'),
   message: text('message').notNull(),
   stack: text('stack'),

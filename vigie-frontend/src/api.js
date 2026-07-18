@@ -40,6 +40,7 @@ export const api = {
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   getSites: () => request('/sites'),
   addSite: (payload) => request('/sites', { method: 'POST', body: payload }),
+  updateSite: (id, payload) => request(`/sites/${id}`, { method: 'PATCH', body: payload }),
   deleteSite: (id) => request(`/sites/${id}`, { method: 'DELETE' }),
   getSiteHistory: (id) => request(`/sites/${id}/history`),
   getSiteVisitors: (id) => request(`/sites/${id}/visitors`),

@@ -10,12 +10,15 @@ export const trackRouter = Router();
 // Le script est embarqué sur le site du client (un autre domaine) : CORS ouvert nécessaire.
 trackRouter.use(cors());
 
-// Snippet à installer par le client : <script async src=".../tracker.js" data-site="SITE_ID"></script>
+// Snippet à installer par le client : <script async src=".../vigie.js" data-site="SITE_ID"></script>
+// Nommage volontairement neutre (ni "tracker", ni "/track/") : les noms trop explicites
+// se font bloquer par les extensions anti-pub et la protection anti-pistage des
+// navigateurs (Brave, Firefox, uBlock...), qui filtrent sur ces motifs.
 const TRACKER_SNIPPET = `(function () {
   var script = document.currentScript;
   var siteId = script && script.getAttribute('data-site');
   if (!siteId) return;
-  var apiBase = script.src.replace(/\\/tracker\\.js.*$/, '');
+  var apiBase = script.src.replace(/\\/vigie\\.js.*$/, '');
 
   var VISITOR_KEY = 'vigie_visitor_id';
   var visitorId = localStorage.getItem(VISITOR_KEY);
@@ -33,10 +36,10 @@ const TRACKER_SNIPPET = `(function () {
     }
   }
 
-  send('/api/track/pageview', { path: location.pathname, referrer: document.referrer || null });
+  send('/api/collect/pageview', { path: location.pathname, referrer: document.referrer || null });
 
   window.addEventListener('error', function (e) {
-    send('/api/track/error', {
+    send('/api/collect/error', {
       message: e.message || 'Erreur inconnue',
       stack: e.error && e.error.stack ? e.error.stack : null,
       url: location.href
@@ -45,7 +48,7 @@ const TRACKER_SNIPPET = `(function () {
 
   window.addEventListener('unhandledrejection', function (e) {
     var reason = e.reason;
-    send('/api/track/error', {
+    send('/api/collect/error', {
       message: 'Promesse rejetée : ' + (reason && reason.message ? reason.message : String(reason)),
       stack: reason && reason.stack ? reason.stack : null,
       url: location.href
@@ -54,11 +57,11 @@ const TRACKER_SNIPPET = `(function () {
 })();
 `;
 
-trackRouter.get('/tracker.js', (req, res) => {
+trackRouter.get('/vigie.js', (req, res) => {
   res.type('application/javascript').send(TRACKER_SNIPPET);
 });
 
-trackRouter.post('/api/track/pageview', async (req, res) => {
+trackRouter.post('/api/collect/pageview', async (req, res) => {
   const { siteId, visitorId, path, referrer } = req.body || {};
   if (!siteId || !visitorId || !path) return res.status(400).end();
 
@@ -73,7 +76,7 @@ trackRouter.post('/api/track/pageview', async (req, res) => {
   res.status(204).end();
 });
 
-trackRouter.post('/api/track/error', async (req, res) => {
+trackRouter.post('/api/collect/error', async (req, res) => {
   const { siteId, visitorId, message, stack, url } = req.body || {};
   if (!siteId || !message) return res.status(400).end();
 

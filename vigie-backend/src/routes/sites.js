@@ -60,6 +60,32 @@ sitesRouter.post('/', async (req, res) => {
   res.status(201).json(site);
 });
 
+sitesRouter.patch('/:id', async (req, res) => {
+  const { tenantId } = req.auth;
+  const { name, url } = req.body;
+
+  const [site] = await db.select().from(sites)
+    .where(and(eq(sites.id, req.params.id), eq(sites.tenantId, tenantId)));
+  if (!site) return res.status(404).json({ error: 'Site introuvable.' });
+
+  const updates = {};
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: 'Le nom ne peut pas être vide.' });
+    updates.name = name;
+  }
+  if (url !== undefined) {
+    try { new URL(url); } catch { return res.status(400).json({ error: 'URL invalide.' }); }
+    updates.url = url;
+  }
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'Rien à mettre à jour.' });
+  }
+
+  await db.update(sites).set(updates).where(eq(sites.id, site.id));
+  const [updated] = await db.select().from(sites).where(eq(sites.id, site.id));
+  res.json(updated);
+});
+
 sitesRouter.delete('/:id', async (req, res) => {
   const { tenantId } = req.auth;
   const [site] = await db.select().from(sites)

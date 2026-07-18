@@ -38,36 +38,50 @@ async function dispatchAlert({ tenantId, siteId, siteName, type, message }) {
 }
 
 export async function runCheckCycle() {
-  const activeSites = await db.select().from(sites).where(eq(sites.isActive, true));
+  let activeSites;
+  try {
+    activeSites = await db.select().from(sites).where(eq(sites.isActive, true));
+  } catch (err) {
+    console.error('[checker] impossible de lire la liste des sites :', err.message);
+    return;
+  }
 
   for (const site of activeSites) {
-    const previousStatus = site.status;
-    const result = await pingSite(site.url);
+    try {
+      const previousStatus = site.status;
+      const result = await pingSite(site.url);
 
-    await db.update(sites).set({
-      status: result.status,
-      responseTimeMs: result.responseTimeMs,
-      lastCheckAt: new Date().toISOString(),
-      uptimeChecksTotal: site.uptimeChecksTotal + 1,
-      uptimeChecksOk: site.uptimeChecksOk + (result.status !== 'down' ? 1 : 0)
-    }).where(eq(sites.id, site.id));
+      // Le site a pu être supprimé pendant qu'on l'interrogeait (fetch en cours) —
+      // ces écritures échoueraient sinon avec une violation de clé étrangère et
+      // arrêteraient tout le cycle pour les sites suivants.
+      const [updated] = await db.update(sites).set({
+        status: result.status,
+        responseTimeMs: result.responseTimeMs,
+        lastCheckAt: new Date().toISOString(),
+        uptimeChecksTotal: site.uptimeChecksTotal + 1,
+        uptimeChecksOk: site.uptimeChecksOk + (result.status !== 'down' ? 1 : 0)
+      }).where(eq(sites.id, site.id)).returning();
+      if (!updated) continue;
 
-    await db.insert(checks).values({
-      id: randomUUID(), siteId: site.id, status: result.status,
-      responseTimeMs: result.responseTimeMs, detail: result.detail
-    });
-
-    if (previousStatus !== 'down' && result.status === 'down') {
-      await dispatchAlert({
-        tenantId: site.tenantId, siteId: site.id, siteName: site.name, type: 'panne',
-        message: `${site.name} est injoignable${result.detail ? ' (' + result.detail + ')' : ''}`
+      await db.insert(checks).values({
+        id: randomUUID(), siteId: site.id, status: result.status,
+        responseTimeMs: result.responseTimeMs, detail: result.detail
       });
-    }
-    if (previousStatus === 'down' && result.status !== 'down') {
-      await dispatchAlert({
-        tenantId: site.tenantId, siteId: site.id, siteName: site.name, type: 'retour',
-        message: `${site.name} est de nouveau en ligne`
-      });
+
+      if (previousStatus !== 'down' && result.status === 'down') {
+        await dispatchAlert({
+          tenantId: site.tenantId, siteId: site.id, siteName: site.name, type: 'panne',
+          message: `${site.name} est injoignable${result.detail ? ' (' + result.detail + ')' : ''}`
+        });
+      }
+      if (previousStatus === 'down' && result.status !== 'down') {
+        await dispatchAlert({
+          tenantId: site.tenantId, siteId: site.id, siteName: site.name, type: 'retour',
+          message: `${site.name} est de nouveau en ligne`
+        });
+      }
+    } catch (err) {
+      console.error(`[checker] échec du cycle pour le site ${site.id} (${site.name}) :`, err.message);
     }
   }
 }

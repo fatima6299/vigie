@@ -3,8 +3,11 @@ import { api, API_ORIGIN } from '../api';
 import { useAuth } from '../AuthContext';
 
 const STATUS_LABELS = { up: 'En ligne', lent: 'Lent', down: 'En panne', en_attente: 'En attente' };
-const STATUS_CLASSES = {
-  up: 'text-teal', lent: 'text-amber', down: 'text-red', en_attente: 'text-text-muted'
+const STATUS_BADGE_CLASSES = {
+  up: 'bg-teal-dim text-teal',
+  lent: 'bg-amber-dim text-amber',
+  down: 'bg-red-dim text-red',
+  en_attente: 'bg-ink-3 text-text-muted'
 };
 const STATUS_DOT = {
   up: 'bg-teal', lent: 'bg-amber', down: 'bg-red', en_attente: 'bg-text-muted'
@@ -27,6 +30,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [tracking, setTracking] = useState({}); // { [siteId]: { visitors, errors, loading } }
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', url: '' });
+  const [actionError, setActionError] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -59,8 +65,35 @@ export default function Dashboard() {
   }
 
   async function handleDelete(id) {
-    await api.deleteSite(id);
-    refresh();
+    if (!confirm('Supprimer ce site et tout son historique de supervision ?')) return;
+    setActionError('');
+    try {
+      await api.deleteSite(id);
+      refresh();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  }
+
+  function startEdit(site) {
+    setEditingId(site.id);
+    setEditForm({ name: site.name, url: site.url });
+    setActionError('');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(id) {
+    setActionError('');
+    try {
+      await api.updateSite(id, editForm);
+      setEditingId(null);
+      refresh();
+    } catch (err) {
+      setActionError(err.message);
+    }
   }
 
   async function toggleExpand(id) {
@@ -98,32 +131,33 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         <StatCard label="Sites surveillés" value={sites.length} />
-        <StatCard label="En ligne" value={upCount} />
-        <StatCard label="En panne" value={downCount} />
+        <StatCard label="En ligne" value={upCount} accent="teal" />
+        <StatCard label="En panne" value={downCount} accent="red" />
         <StatCard label="Alertes envoyées" value={alerts.length} />
       </div>
 
-      <section className="bg-ink-2 border border-line rounded-xl overflow-hidden mb-6">
+      <section className="bg-ink-2 border border-line rounded-xl shadow-sm overflow-hidden mb-6">
         <div className="px-5 py-3.5 border-b border-line">
           <h2 className="font-display text-sm font-semibold">Sites surveillés</h2>
         </div>
 
-        <form onSubmit={handleAddSite} className="flex gap-2 px-5 py-4 border-b border-line">
+        <form onSubmit={handleAddSite} className="flex gap-2 px-5 py-4 border-b border-line bg-ink-3/40">
           <input
             placeholder="Nom (ex : Boutique en ligne)" required
             value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            className="flex-1 bg-ink-3 border border-line rounded-md px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:border-teal"
+            className="flex-1 bg-ink-2 border border-line rounded-md px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal-dim transition-shadow"
           />
           <input
             placeholder="https://exemple.sn" type="url" required
             value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-            className="flex-1 bg-ink-3 border border-line rounded-md px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:border-teal"
+            className="flex-1 bg-ink-2 border border-line rounded-md px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal-dim transition-shadow"
           />
-          <button type="submit" className="bg-teal text-[#08211B] font-medium rounded-md px-4 text-sm hover:bg-[#3ABE9E] transition-colors whitespace-nowrap">
+          <button type="submit" className="bg-teal text-white font-medium rounded-md px-4 text-sm hover:bg-teal-strong transition-colors whitespace-nowrap shadow-sm">
             Ajouter ↗
           </button>
         </form>
         {formError && <p className="text-red text-xs px-5 pb-2">{formError}</p>}
+        {actionError && <p className="text-red text-xs px-5 pb-2">{actionError}</p>}
 
         {loading ? (
           <p className="px-5 py-8 text-center text-text-muted text-sm">Chargement...</p>
@@ -134,26 +168,43 @@ export default function Dashboard() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-text-muted text-xs">
-                <th className="text-left font-normal px-5 py-2.5">Site</th>
-                <th className="text-left font-normal px-5 py-2.5">Statut</th>
-                <th className="text-left font-normal px-5 py-2.5">Temps de réponse</th>
-                <th className="text-left font-normal px-5 py-2.5">Disponibilité</th>
+              <tr className="text-text-muted text-xs uppercase tracking-wide">
+                <th className="text-left font-medium px-5 py-2.5">Site</th>
+                <th className="text-left font-medium px-5 py-2.5">Statut</th>
+                <th className="text-left font-medium px-5 py-2.5">Temps de réponse</th>
+                <th className="text-left font-medium px-5 py-2.5">Disponibilité</th>
                 <th className="px-5 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
               {sites.map(s => (
                 <Fragment key={s.id}>
-                  <tr className="border-t border-line">
+                  <tr className="border-t border-line hover:bg-ink-3/50 transition-colors">
                     <td className="px-5 py-3">
-                      <button onClick={() => toggleExpand(s.id)} className="text-left hover:opacity-80 transition-opacity">
-                        <div className="font-medium">{s.name}</div>
-                        <div className="text-text-muted text-xs">{s.url}</div>
-                      </button>
+                      {editingId === s.id ? (
+                        <div className="flex flex-col gap-1.5 max-w-xs">
+                          <input
+                            value={editForm.name}
+                            onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                            placeholder="Nom"
+                            className="bg-ink border border-line rounded-md px-2 py-1 text-sm focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal-dim transition-shadow"
+                          />
+                          <input
+                            value={editForm.url}
+                            onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))}
+                            placeholder="URL"
+                            className="bg-ink border border-line rounded-md px-2 py-1 text-xs text-text-muted focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal-dim transition-shadow"
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => toggleExpand(s.id)} className="text-left hover:opacity-80 transition-opacity">
+                          <div className="font-medium">{s.name}</div>
+                          <div className="text-text-muted text-xs">{s.url}</div>
+                        </button>
+                      )}
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`inline-flex items-center gap-1.5 ${STATUS_CLASSES[s.status]}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_BADGE_CLASSES[s.status]}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[s.status]}`} />
                         {STATUS_LABELS[s.status]}
                       </span>
@@ -164,10 +215,20 @@ export default function Dashboard() {
                     </td>
                     <td className="px-5 py-3">{s.uptimePercent != null ? `${s.uptimePercent}%` : '—'}</td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
-                      <button onClick={() => toggleExpand(s.id)} className="text-text-muted hover:text-text-primary transition-colors mr-3" title="Visiteurs et erreurs">
-                        {expandedId === s.id ? '▲' : '📊'}
-                      </button>
-                      <button onClick={() => handleDelete(s.id)} className="text-text-muted hover:text-red transition-colors" title="Supprimer">✕</button>
+                      {editingId === s.id ? (
+                        <>
+                          <button onClick={() => saveEdit(s.id)} className="text-teal hover:text-teal-strong transition-colors mr-3 font-medium" title="Enregistrer">✓</button>
+                          <button onClick={cancelEdit} className="text-text-muted hover:text-text-primary transition-colors" title="Annuler">✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => toggleExpand(s.id)} className="text-text-muted hover:text-teal transition-colors mr-3" title="Visiteurs et erreurs">
+                            {expandedId === s.id ? '▲' : '📊'}
+                          </button>
+                          <button onClick={() => startEdit(s)} className="text-text-muted hover:text-teal transition-colors mr-3" title="Renommer">✎</button>
+                          <button onClick={() => handleDelete(s.id)} className="text-text-muted hover:text-red transition-colors" title="Supprimer">✕</button>
+                        </>
+                      )}
                     </td>
                   </tr>
                   {expandedId === s.id && (
@@ -184,7 +245,7 @@ export default function Dashboard() {
         )}
       </section>
 
-      <section className="bg-ink-2 border border-line rounded-xl overflow-hidden">
+      <section className="bg-ink-2 border border-line rounded-xl shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 border-b border-line">
           <h2 className="font-display text-sm font-semibold">Alertes récentes</h2>
         </div>
@@ -203,18 +264,20 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ label, value }) {
+const STAT_ACCENT_CLASSES = { teal: 'text-teal', red: 'text-red' };
+
+function StatCard({ label, value, accent }) {
   return (
-    <div className="bg-ink-2 border border-line rounded-lg p-4">
+    <div className="bg-ink-2 border border-line rounded-lg shadow-sm p-4">
       <div className="text-xs text-text-secondary mb-1">{label}</div>
-      <div className="font-display text-xl font-semibold">{value}</div>
+      <div className={`font-display text-xl font-semibold ${STAT_ACCENT_CLASSES[accent] || ''}`}>{value}</div>
     </div>
   );
 }
 
 function SiteTracking({ site, data }) {
   const [copied, setCopied] = useState(false);
-  const snippet = `<script async src="${API_ORIGIN}/tracker.js" data-site="${site.id}"></script>`;
+  const snippet = `<script async src="${API_ORIGIN}/vigie.js" data-site="${site.id}"></script>`;
 
   function copySnippet() {
     navigator.clipboard.writeText(snippet);
